@@ -100,6 +100,7 @@
     });
 
     // ---------- Charts ----------
+    const narrow = () => window.matchMedia("(max-width: 640px)").matches;
     const css = getComputedStyle(document.documentElement);
     const color = name => css.getPropertyValue(name).trim();
     const C = {
@@ -129,13 +130,18 @@
         beforeDatasetsDraw(chart, _args, options) {
             const { ctx, chartArea, scales } = chart;
             ctx.save();
+            let lastLabelEnd = -Infinity;
             for (const band of options.bands || []) {
                 const x1 = scales.x.getPixelForValue(band.start - 0.5);
                 const width = Math.max(scales.x.getPixelForValue(band.end + 0.5) - x1, 3);
                 ctx.fillStyle = C.blueBand;
                 ctx.fillRect(x1, chartArea.top, width, chartArea.bottom - chartArea.top);
-                ctx.fillStyle = C.blue;
+                // Skip a name that would overlap the previous one; the band itself still shows.
                 ctx.font = '600 11px "JetBrains Mono", monospace';
+                const labelWidth = ctx.measureText(band.motif).width;
+                if (x1 + width / 2 - labelWidth / 2 < lastLabelEnd + 6) continue;
+                lastLabelEnd = x1 + width / 2 + labelWidth / 2;
+                ctx.fillStyle = C.blue;
                 ctx.textAlign = x1 > chartArea.right - 60 ? "right" : "center";
                 const x = ctx.textAlign === "right" ? x1 + width : x1 + width / 2;
                 ctx.fillText(band.motif, x, chartArea.top - 6);
@@ -185,9 +191,9 @@
                 interaction: { mode: "nearest", axis: "x", intersect: false },
                 scales: {
                     x: { type: "linear", min: 1, max: data.length, grid: { display: false }, border: { color: C.line },
-                         title: { display: true, text: "Residue position" }, ticks: { maxTicksLimit: 12 } },
+                         title: { display: true, text: "Residue position" }, ticks: { maxTicksLimit: narrow() ? 6 : 12 } },
                     y: { suggestedMin: -3, suggestedMax: 3, grid: { color: C.grid }, border: { display: false },
-                         title: { display: true, text: "Mean KD score" } },
+                         title: { display: !narrow(), text: "Mean KD score" } },
                 },
                 plugins: {
                     legend: { display: false },
@@ -245,12 +251,12 @@
                     scales: {
                         x: {
                             grid: { display: false }, border: { color: C.line },
-                            ticks: { autoSkip: false, maxRotation: 60, font: { size: 11 },
+                            ticks: { autoSkip: false, maxRotation: 60, font: { size: narrow() ? 9.5 : 11 },
                                      color: ctx => (inMotif[ctx.index] ? C.blue : C.muted) },
                         },
                         y: {
                             min: Math.floor((lo - pad) * 10) / 10, max: Math.ceil((hi + pad) * 10) / 10,
-                            grid: { color: C.grid }, border: { display: false }, title: { display: true, text: "Mean KD score" },
+                            grid: { color: C.grid }, border: { display: false }, title: { display: !narrow(), text: "Mean KD score" },
                         },
                     },
                     plugins: {

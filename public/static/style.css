@@ -241,7 +241,20 @@ button { font-family: inherit; }
     .panel { padding: 16px 14px; }
     .chart-lg { height: 260px; }
     .chart { height: 220px; }
-    .sequence { font-size: 12.5px; }
+    /* Sequence: 60-letter rows flow onto lines of 30, so nothing scrolls sideways. */
+    .sequence { font-size: 11.5px; line-height: 2.1; }
+    .seq-num { width: 2.8em; padding-right: 0.8em; }
+    .seq-blocks { display: flex; flex-wrap: wrap; white-space: nowrap; }
+    .seq-block { margin-right: 0.7em; }
+    .seq-block > span { width: 1.15ch; }
+    /* Tighter keys and headings */
+    .block { margin-top: 24px; }
+    .block-head { gap: 6px 10px; }
+    .key { gap: 6px 12px; font-size: 12.5px; }
+    .summary-title h2 { font-size: 21px; }
+    .verdict-title { font-size: 16px; }
+    .tool { height: 38px; }
+    .motif-top .text-btn { margin-left: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

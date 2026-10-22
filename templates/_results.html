@@ -141,11 +141,11 @@
         <div class="panel">
             <div class="sequence">
                 {%- for row in rows %}
-                <div class="seq-row"><span class="seq-num">{{ row.start }}</span>
+                <div class="seq-row"><span class="seq-num">{{ row.start }}</span><span class="seq-blocks">
                     {%- for block in row.blocks %}<span class="seq-block">
                         {%- for r in block %}<span class="{{ r.cls }}" title="{{ aa_names.get(r.aa, r.aa) }} {{ r.pos }}{% if r.score is not none %}: {{ '%.2f' % r.score }}{% endif %}">{{ r.aa }}</span>{% endfor -%}
                     </span>{% endfor -%}
-                </div>
+                </span></div>
                 {%- endfor %}
             </div>
             {% if not qual or not a.high_residues %}
