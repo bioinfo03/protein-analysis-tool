@@ -69,9 +69,9 @@
             </div>`;
     }
 
-    // Keep the loader up for at least this long so it reads as a step, not a flicker.
-    // The wait runs alongside the request, so slow NCBI lookups take no longer.
-    const MIN_LOADING_MS = 1000;
+    // Extra time the loader stays up after the result arrives, so it reads as a step, not a flicker.
+    const EXTRA_LOADING_MS = 1000;
+    const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     let busy = false;
     form.addEventListener("submit", async event => {
         event.preventDefault();
@@ -82,7 +82,6 @@
         go.disabled = true;
         chips.forEach(chip => chip.classList.toggle("is-active", chip === activeChip));
         showLoader();
-        const minimumWait = new Promise(resolve => setTimeout(resolve, MIN_LOADING_MS));
         try {
             const response = await fetch(form.action, {
                 method: "POST",
@@ -90,10 +89,10 @@
                 headers: { "X-Requested-With": "fetch" },
             });
             const html = await response.text();
-            await minimumWait;
+            await pause(EXTRA_LOADING_MS);
             results.innerHTML = html;
         } catch (error) {
-            await minimumWait;
+            await pause(EXTRA_LOADING_MS);
             results.innerHTML = '<p class="error" role="alert">Could not reach the server. Check your connection and try again.</p>';
         } finally {
             busy = false;
