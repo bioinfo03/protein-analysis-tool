@@ -1,0 +1,10 @@
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Assignment handouts (kept out of the public repository)
+Help.pdf
+Problem description.doc

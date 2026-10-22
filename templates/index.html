@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="topbar">
+    <div class="topbar-inner">
+        <a class="brand" href="{{ url_for('index') }}">
+            <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="30" height="30">
+            <span>Hydropathy Motif Finder</span>
+        </a>
+        <span class="brand-tag">Kyte–Doolittle hydropathy analysis</span>
+    </div>
+</header>
+
+<main class="page {{ '' if (results or error) else 'is-idle' }}">
+    <form class="search" action="{{ url_for('analyze') }}" method="post" id="analyze-form" autocomplete="off">
+        <h1>Analyze a protein</h1>
+        <p class="lede">Find <span class="mono">{{ defaults.pattern }}</span> motifs that sit in hydrophobic regions</p>
+
+        <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.2"/><path d="M12.4 12.4L16.5 16.5"/></svg>
+            <textarea name="query" id="query" rows="1" spellcheck="false" required
+                      aria-label="NCBI accession or protein sequence"
+                      placeholder="NCBI accession or protein sequence">{{ query }}</textarea>
+            <details class="settings" {% if settings_changed %}open{% endif %}>
+                <summary title="Settings" aria-label="Settings">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h8M15 5h2M3 10h2M9 10h8M3 15h10"/><circle cx="13" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="15" cy="15" r="2"/></svg>
+                </summary>
+                <div class="settings-panel">
+                    <p class="settings-title">Analysis settings</p>
+                    <label>Window<input type="number" name="window" min="{{ window_limits[0] }}" max="{{ window_limits[1] }}" value="{{ form.get('window') or defaults.window }}"></label>
+                    <label>Threshold<input type="number" name="threshold" step="0.05" min="-4.5" max="4.5" value="{{ form.get('threshold') or defaults.threshold }}"></label>
+                    <label>Motif<input type="text" name="pattern" class="mono" spellcheck="false" value="{{ form.get('pattern') or defaults.pattern }}"></label>
+                    <label class="wide">Allowed at each ?<input type="text" name="allowed" class="mono" spellcheck="false" value="{{ form.get('allowed') or defaults.allowed }}"></label>
+                    <button type="button" class="reset" data-reset
+                            data-window="{{ defaults.window }}" data-threshold="{{ defaults.threshold }}"
+                            data-pattern="{{ defaults.pattern }}" data-allowed="{{ defaults.allowed }}">Reset to defaults</button>
+                </div>
+            </details>
+            <button type="submit" class="button" id="go">
+                <span>Analyze</span><span class="spinner" aria-hidden="true"></span>
+            </button>
+        </div>
+
+        <div class="examples">
+            <span>Try</span>
+            {% for label, accession, hint in example_proteins %}
+            <button type="button" class="chip" data-fill="{{ accession }}" title="{{ hint }}">{{ label }}</button>
+            {% endfor %}
+            <button type="button" class="chip" data-fill-example title="The 481-residue protein from the assignment's example output">Assignment example</button>
+        </div>
+    </form>
+
+    <div id="results" aria-live="polite">
+        {% if error %}{% include "_error.html" %}
+        {% elif results %}{% include "_results.html" %}{% endif %}
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>window.EXAMPLE_SEQUENCE = {{ example_sequence | tojson }};</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

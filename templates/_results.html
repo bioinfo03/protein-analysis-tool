@@ -1,0 +1,163 @@
+{% set s = a.settings %}
+{% set qual = a.qualifying_hits %}
+{% set weak = a.hits | rejectattr('qualifying') | list %}
+{% set thr = '%g' % s.threshold %}
+{% set length = a.sequence | length %}
+<section class="results">
+
+    <div class="summary {{ 'is-yes' if qual }}">
+        <div class="summary-top">
+            <div class="summary-title">
+                <h2>{% if record %}{{ record.definition or record.accession }}{% else %}Pasted sequence{% endif %}</h2>
+                <p class="meta">
+                    {% if record %}<span class="mono">{{ record.version or record.accession }}</span>{% endif %}
+                    {% if record and record.organism %}<span>{{ record.organism }}</span>{% endif %}
+                    {% if not record %}<span>No NCBI record, so the export contains the analysis only</span>{% endif %}
+                </p>
+            </div>
+            <div class="toolbar">
+                {% if record %}
+                    <a class="tool" href="{{ record.search_url }}" target="_blank" rel="noopener">NCBI record</a>
+                    <a class="tool tool-strong" href="{{ export_url }}">Export to Excel</a>
+                {% else %}
+                    <form method="post" action="{{ url_for('export_analysis') }}">
+                        {% for name in ['window', 'threshold', 'pattern', 'allowed'] %}<input type="hidden" name="{{ name }}" value="{{ s[name] }}">{% endfor %}
+                        <input type="hidden" name="sequence" value="{{ a.sequence }}">
+                        <button class="tool tool-strong" type="submit">Export to Excel</button>
+                    </form>
+                {% endif %}
+                <button class="tool" type="button" data-copy-fasta>Copy FASTA</button>
+            </div>
+        </div>
+
+        <div class="verdict">
+            <span class="verdict-icon" aria-hidden="true">{% if qual %}<svg viewBox="0 0 20 20"><path d="M5 10.5l3.2 3.2L15 7"/></svg>{% else %}<svg viewBox="0 0 20 20"><path d="M6 10h8"/></svg>{% endif %}</span>
+            <div>
+            {% if qual %}
+                <p class="verdict-title">
+                    {% for h in qual %}<span class="motif-tag">{{ h.motif }}</span> {% endfor %}
+                    {{ 'is' if qual | length == 1 else 'are' }} inside a hydrophobic window
+                </p>
+                <p class="verdict-why">
+                    {{ qual | length }} of {{ a.hits | length }} motif{{ 's' if a.hits | length != 1 }} lie{{ 's' if qual | length == 1 }} in a stretch of {{ s.window }} letters that averages {{ thr }} or more.
+                    {% if weak %}The other{{ 's' if weak | length != 1 }} ({% for h in weak %}{{ h.motif }}{{ ', ' if not loop.last }}{% endfor %}) {{ 'does' if weak | length == 1 else 'do' }} not.{% endif %}
+                </p>
+            {% elif a.hits and not a.windows %}
+                <p class="verdict-title">The motif was found, but it cannot be scored</p>
+                <p class="verdict-why">The sequence has {{ length }} letters, fewer than the {{ s.window }}-letter window, so no hydrophobicity score can be calculated.</p>
+            {% elif a.hits %}
+                <p class="verdict-title">{{ s.pattern }} is present, but not in a hydrophobic region</p>
+                <p class="verdict-why">
+                    It occurs {{ a.hits | length }} time{{ 's' if a.hits | length != 1 }}, but no {{ s.window }}-letter window around {{ 'it' if a.hits | length == 1 else 'them' }} averages {{ thr }} or more.
+                    The closest is {{ '%.2f' % (a.hits | map(attribute='best_window') | select | map(attribute='score') | max) }}.
+                </p>
+            {% else %}
+                <p class="verdict-title">No {{ s.pattern }} motif in this protein</p>
+                <p class="verdict-why">The pattern (A, L, three allowed letters, then L, W) does not occur anywhere in its {{ length }} letters, so there is no motif to report.</p>
+            {% endif %}
+            </div>
+        </div>
+
+        <dl class="facts">
+            <div><dt>Length</dt><dd>{{ length }} aa</dd></div>
+            <div><dt>Motifs found</dt><dd>{{ a.hits | length }}</dd></div>
+            <div><dt>In a hydrophobic window</dt><dd class="{{ 'is-blue' if qual }}">{{ qual | length }}</dd></div>
+            <div><dt>Hydrophobic regions</dt><dd>{{ a.segments | length }}</dd></div>
+            <div><dt>Peak score</dt><dd>{{ '%.2f' % a.max_window.score if a.max_window else '–' }}</dd></div>
+        </dl>
+    </div>
+
+    <section class="block">
+        <div class="block-head">
+            <h3>Hydropathy profile</h3>
+            {% if a.windows %}
+            <div class="key">
+                <span><i class="k-dash"></i>Threshold {{ thr }}</span>
+                {% if a.high_window_count %}<span><i class="k-red"></i>Above threshold</span>{% endif %}
+                {% if qual %}<span><i class="k-blue"></i>Motif</span>{% endif %}
+                <button class="text-btn" type="button" data-download="profile-chart" data-name="hydropathy_profile">Download PNG</button>
+            </div>
+            {% endif %}
+        </div>
+        <div class="panel">
+        {% if a.windows %}
+            <div class="chart chart-lg"><canvas id="profile-chart" aria-label="Kyte-Doolittle hydropathy profile"></canvas></div>
+            {% if not a.high_window_count %}
+            <p class="note">No part of this protein averages {{ thr }} or more, so no region is marked as hydrophobic. The highest score is {{ '%.2f' % a.max_window.score }}.</p>
+            {% endif %}
+        {% else %}
+            <p class="empty">This sequence has {{ length }} letters, fewer than the {{ s.window }}-letter window, so no profile can be drawn. Use a longer sequence, or a smaller window in Settings.</p>
+        {% endif %}
+        </div>
+    </section>
+
+    <section class="block">
+        <div class="block-head">
+            <h3>Motif score plots</h3>
+            {% if a.hits %}<span class="count">{{ a.hits | length }}</span>
+            <div class="key">
+                <span><i class="k-dash"></i>Threshold {{ thr }}</span>
+                <span><i class="k-dot"></i>Window passes</span>
+                <span><i class="k-blue"></i>Motif letters</span>
+            </div>{% endif %}
+        </div>
+        {% if a.hits %}
+        <div class="motifs {{ 'is-single' if a.hits | length == 1 }}">
+        {% for h in a.hits %}
+            <article class="panel motif-card {{ 'is-yes' if h.qualifying }}">
+                <div class="motif-top">
+                    <span class="motif-seq">{{ h.motif }}</span>
+                    <span class="motif-pos">residues {{ h.start }}–{{ h.end }}</span>
+                    {% if h.windows %}
+                    <span class="badge {{ 'badge-yes' if h.qualifying }}">{{ 'Passes threshold' if h.qualifying else 'Below threshold' }}</span>
+                    <button class="text-btn" type="button" data-download="motif-chart-{{ loop.index0 }}" data-name="kd_{{ h.motif }}_{{ h.start }}">Download PNG</button>
+                    {% endif %}
+                </div>
+                {% if h.windows %}
+                    <div class="chart"><canvas id="motif-chart-{{ loop.index0 }}"></canvas></div>
+                    <p class="motif-foot">
+                        Best window {{ h.best_window.start }}–{{ h.best_window.end }} scores <b>{{ '%.2f' % h.best_window.score }}</b>{% if not h.qualifying %}, below the {{ thr }} threshold{% endif %}
+                    </p>
+                {% else %}
+                    <p class="empty">No complete {{ s.window }}-letter window fits in this {{ length }}-letter sequence, so this motif has no scores to plot.</p>
+                {% endif %}
+            </article>
+        {% endfor %}
+        </div>
+        {% else %}
+            <div class="panel"><p class="empty">Nothing to plot: {{ s.pattern }} does not occur in this protein. A plot appears here for each motif that is found.</p></div>
+        {% endif %}
+    </section>
+
+    <section class="block">
+        <div class="block-head">
+            <h3>Sequence</h3>
+            <div class="key">
+                {% if qual %}<span><i class="k-blue-solid"></i>{{ s.pattern }} motif in a hydrophobic window</span>{% endif %}
+                {% if weak %}<span><i class="k-blue-line"></i>{{ s.pattern }} motif outside one</span>{% endif %}
+                {% if a.high_residues %}<span><i class="k-red-solid"></i>Hydrophobic stretch (not a motif)</span>{% endif %}
+            </div>
+        </div>
+        <div class="panel">
+            <div class="sequence">
+                {%- for row in rows %}
+                <div class="seq-row"><span class="seq-num">{{ row.start }}</span>
+                    {%- for block in row.blocks %}<span class="seq-block">
+                        {%- for r in block %}<span class="{{ r.cls }}" title="{{ aa_names.get(r.aa, r.aa) }} {{ r.pos }}{% if r.score is not none %}: {{ '%.2f' % r.score }}{% endif %}">{{ r.aa }}</span>{% endfor -%}
+                    </span>{% endfor -%}
+                </div>
+                {%- endfor %}
+            </div>
+            {% if not qual or not a.high_residues %}
+            <p class="note">
+                {% if not a.hits %}No letters are blue because the motif does not occur.
+                {% elif not qual %}No letters are solid blue because no motif is in a hydrophobic window.{% endif %}
+                {% if not a.windows %}No letters are red because the sequence is too short to score.
+                {% elif not a.high_residues %}No letters are red because no window reaches {{ thr }}.{% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </section>
+
+    <script type="application/json" class="analysis-data">{{ {'chart': chart, 'sequence': a.sequence, 'fasta_header': fasta_header} | tojson }}</script>
+</section>
