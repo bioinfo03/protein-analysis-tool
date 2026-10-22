@@ -1,7 +1,7 @@
 :root {
     --paper: #e9edf2;
     --tint: #f4f6f9;
-    --soft: #f2f4f7;   /* the light gray used inside result cards */
+    --soft: #f2f4f7;   /* light gray inside the result cards */
     --tint-2: #eef1f5;
     --surface: #ffffff;
     --ink: #13233a;
@@ -11,7 +11,7 @@
     --grid: #edf0f4;
     --navy: #13233a;
     --navy-2: #1c3150;
-    /* Assignment colours: motif = blue, high Kyte-Doolittle score = red. */
+    /* blue = motif, red = high KD score (as asked in the problem statement) */
     --blue: #2452e0;
     --blue-soft: #e8eefd;
     --blue-band: rgba(36, 82, 224, 0.12);
@@ -32,15 +32,14 @@ button { font-family: inherit; }
 .muted { color: var(--muted); }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 
-/* ---------- Header ---------- */
+/* header */
 .topbar { background: linear-gradient(180deg, #f9fafc, #f1f4f8); border-bottom: 1px solid #dde3ea; }
 .topbar-inner { max-width: 1080px; margin: 0 auto; padding: 0 24px; height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
 .brand img { display: block; }
 .brand-tag { font-size: 13px; color: var(--ink-2); background: var(--tint-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; }
 
-/* ---------- Search ---------- */
-/* On startup the search sits in the middle of the screen; once results load it glides to the top. */
+/* search box - centered on load, moves to the top once there are results */
 .search { max-width: 760px; margin: 0 auto; text-align: center; transition: margin-top .5s cubic-bezier(.2, .7, .2, 1); }
 .page.is-idle .search { margin-top: max(24px, calc(50vh - 62px - 190px)); }
 .search h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.025em; transition: font-size .3s; }
@@ -80,7 +79,7 @@ button { font-family: inherit; }
 }
 .chip:hover { border-color: #b9c3cf; background: var(--surface); color: var(--ink); }
 
-/* Settings: an icon button inside the bar that opens a small pop-out. */
+/* settings button + popup */
 .settings { position: static; flex: none; }
 .settings summary {
     display: grid; place-items: center; width: 46px; height: 46px; cursor: pointer; list-style: none;
@@ -107,7 +106,7 @@ button { font-family: inherit; }
 
 .chip.is-active { background: var(--navy); border-color: var(--navy); color: #fff; }
 
-/* ---------- Loading state ---------- */
+/* loader */
 .loader { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 22px 24px 24px; }
 .loader-head { display: flex; align-items: center; gap: 14px; }
 .loader-spin { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #dde3ea; border-top-color: var(--navy); animation: spin .8s linear infinite; }
@@ -122,12 +121,12 @@ button { font-family: inherit; }
 }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
-/* ---------- Page ---------- */
+/* page */
 .page { max-width: 1080px; margin: 0 auto; padding: 28px 24px 72px; }
 .error { color: #b8231e; background: var(--red-soft); border: 1px solid #f6cbc7; border-radius: 12px; padding: 14px 18px; margin: 0; }
 
 
-/* ---------- Results ---------- */
+/* results */
 #results { margin-top: 30px; scroll-margin-top: 16px; transition: opacity .15s; }
 
 .summary { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
@@ -199,7 +198,7 @@ button { font-family: inherit; }
 .motif-foot { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
 .motif-foot b { color: var(--ink); font-weight: 600; }
 
-/* ---------- Sequence ---------- */
+/* sequence view */
 .sequence { font: 15px/2 var(--mono); overflow-x: auto; }
 .seq-row { display: flex; white-space: nowrap; }
 .seq-row:nth-child(even) { background: #f8f9fb; border-radius: 4px; }
@@ -241,13 +240,13 @@ button { font-family: inherit; }
     .panel { padding: 16px 14px; }
     .chart-lg { height: 260px; }
     .chart { height: 220px; }
-    /* Sequence: 60-letter rows flow onto lines of 30, so nothing scrolls sideways. */
+    /* wrap each 60-residue row onto two lines so it fits on a phone */
     .sequence { font-size: 11.5px; line-height: 2.1; }
     .seq-num { width: 2.8em; padding-right: 0.8em; }
     .seq-blocks { display: flex; flex-wrap: wrap; white-space: nowrap; }
     .seq-block { margin-right: 0.7em; }
     .seq-block > span { width: 1.15ch; }
-    /* Tighter keys and headings */
+    /* smaller spacing */
     .block { margin-top: 24px; }
     .block-head { gap: 6px 10px; }
     .key { gap: 6px 12px; font-size: 12.5px; }

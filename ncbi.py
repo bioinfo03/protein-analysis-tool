@@ -1,9 +1,8 @@
 """
-Fetching protein records from NCBI and parsing the GenPept flat-file format.
+Fetch protein records from NCBI and parse the GenPept text format.
 
-NCBI's E-utilities 'efetch' endpoint returns the same text as the
-"GenPept" details view on the NCBI website, including the ORIGIN section
-that holds the sequence.
+efetch with rettype=gp gives the same text as the GenPept view on the NCBI
+site. The sequence is in the ORIGIN section at the end.
 """
 
 import os
@@ -22,13 +21,13 @@ TIMEOUT_SECONDS = 20
 
 
 class NCBIError(Exception):
-    """A problem talking to NCBI (network, rate limit, unknown accession)."""
+    """NCBI is down, slow, or rate limiting us."""
 
 
 @dataclass(frozen=True)
 class ProteinRecord:
     accession: str
-    text: str           # the raw GenPept record
+    text: str           # full GenPept text
     sequence: str
     definition: str
     organism: str
@@ -70,7 +69,7 @@ def _fetch_record(accession):
         "retmode": "text",
         "tool": "protein-analysis-tool",
     }
-    # Optional, but NCBI asks heavy users to identify themselves.
+    # optional, NCBI asks for these if you send a lot of requests
     if os.environ.get("NCBI_EMAIL"):
         params["email"] = os.environ["NCBI_EMAIL"]
     if os.environ.get("NCBI_API_KEY"):
@@ -94,7 +93,7 @@ def _fetch_record(accession):
         raise NCBIError(f"NCBI returned an error (HTTP {response.status_code}). Please try again later.")
 
     text = response.text.strip()
-    # A single accession should give one record; keep only the first if not.
+    # should only be one record, but just in case keep the first
     text = text.split("\n//", 1)[0] + "\n//"
     sequence = parse_origin(text)
     if not sequence:
@@ -113,8 +112,8 @@ def _fetch_record(accession):
 
 def readable_definition(definition):
     """
-    UniProt-derived records read 'RecName: Full=Semaphorin-1A; AltName: ...; Flags: Precursor.'
-    Keep just the recommended name; other definitions are returned unchanged.
+    UniProt-based records look like 'RecName: Full=Semaphorin-1A; AltName: ...'.
+    Pull out just the name. Anything else is returned as is.
     """
     definition = definition.strip().rstrip(".")
     match = re.match(r"RecName: Full=([^;]+)", definition)
@@ -129,7 +128,7 @@ def parse_origin(text):
 
 
 def top_level_fields(text):
-    """Yield (KEY, value) for top-level sections, joining wrapped lines."""
+    """(KEY, value) for the top-level sections like LOCUS, DEFINITION, SOURCE."""
     for entry in parse_genpept(text):
         if entry.level == 0 and entry.key not in ("FEATURES", "ORIGIN"):
             yield entry.key, entry.value
@@ -139,18 +138,16 @@ def top_level_fields(text):
 class Entry:
     key: str
     value: str
-    level: int          # 0 = section (LOCUS), 1 = subsection (AUTHORS), 2 = sub-sub (PUBMED)
+    level: int          # 0 = LOCUS etc, 1 = AUTHORS etc, 2 = PUBMED
     lines: list
 
 
 def parse_genpept(text):
     """
-    Split a GenPept record into its labelled entries.
-
-    Labels sit in columns 1-12 and values start at column 13; continuation
-    lines have a blank label. The indentation of the label gives the level
-    (e.g. 'REFERENCE' -> '  AUTHORS' -> '   PUBMED'). FEATURES and ORIGIN are
-    kept as raw lines and parsed separately.
+    Split a GenPept record into entries. The label is in the first 12
+    columns and the value starts at column 13; lines with an empty label
+    continue the previous entry. Indentation of the label tells the level
+    (REFERENCE > AUTHORS > PUBMED). FEATURES and ORIGIN keep their raw lines.
     """
     entries = []
     current = None
@@ -186,7 +183,7 @@ class Feature:
 
 
 def parse_features(text):
-    """Parse the FEATURES table into features and their /qualifiers."""
+    """FEATURES table -> list of features with their /qualifiers."""
     block = None
     for entry in parse_genpept(text):
         if entry.key == "FEATURES":
@@ -196,7 +193,7 @@ def parse_features(text):
         return []
 
     features = []
-    raw = None      # [name, raw value] of the qualifier being read
+    raw = None      # qualifier currently being read: [name, value]
     for line in block:
         if len(line) > 5 and line[5] != " " and line[:5] == "     ":
             key, _, location = line.strip().partition(" ")
@@ -207,14 +204,14 @@ def parse_features(text):
             continue
         content = line.strip()
         feature = features[-1]
-        # A '/' only starts a new qualifier when the previous quoted value is closed.
+        # a line starting with '/' can still be part of an open "..." value
         quote_open = raw is not None and raw[1].count('"') % 2 == 1
         if content.startswith("/") and not quote_open:
             name, _, value = content[1:].partition("=")
             raw = [name, value]
             feature.qualifiers.append(raw)
         elif raw is not None:
-            # Wrapped value; protein translations wrap without spaces.
+            # value continues on this line (translation is joined without spaces)
             raw[1] += ("" if raw[0] == "translation" else " ") + content
         else:
             feature.location += content
@@ -225,7 +222,7 @@ def parse_features(text):
 
 
 def origin_lines(text):
-    """The ORIGIN section as NCBI prints it, e.g. '1 mraalvavaa llwvalhaaa ...'."""
+    """ORIGIN lines as NCBI prints them, e.g. '1 mraalvavaa llwvalhaaa ...'."""
     if "\nORIGIN" not in text:
         return []
     origin = text.split("\nORIGIN", 1)[1].split("//", 1)[0]

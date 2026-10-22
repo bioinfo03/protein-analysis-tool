@@ -10,11 +10,11 @@ import ncbi
 
 FIXTURE = (Path(__file__).parent / "fixtures" / "Q26473.gp").read_text()
 
-# Window means read off the example "Kyte-Doolittle Score Plot" in the
-# assignment (values x100), for the 13 windows containing ALHAGLW 297-303.
 # Residues 640-660 of Semaphorin-7A (O75326), around its motif.
 SEMA7A_SNIPPET = "LLGHACALAASLWLGVLPTLT"
 
+# Values read off the example KD plot in the problem statement (x100),
+# for the 13 windows around ALHAGLW 297-303.
 EXAMPLE_PLOT = [36, 49, 72, 45, 61, 51, 92, 121, 112, 149, 174, 167, 181]
 
 
@@ -32,7 +32,7 @@ def client(monkeypatch):
     return webapp.app.test_client()
 
 
-# ---------- analysis ----------
+# analysis
 
 def test_example_protein_matches_assignment_plot():
     result = an.analyze(webapp.EXAMPLE_SEQUENCE)
@@ -52,7 +52,7 @@ def test_window_centre_and_running_mean():
 
 
 def test_motif_needs_a_whole_high_window():
-    # Hydrophobic flank (I) makes windows pass; the motif must sit fully inside one.
+    # surrounded by I, so the windows around the motif are hydrophobic
     seq = "I" * 12 + "ALAAALW" + "I" * 12
     result = an.analyze(seq, an.Settings(window=19))
     assert [h.qualifying for h in result.hits] == [True]
@@ -72,7 +72,7 @@ def test_overlapping_motifs_and_allowed_set():
     regex, length, _ = an.compile_pattern("AL???LW")
     assert length == 7
     assert [m[1] for m in an.find_motifs("ALAAALWALAALWLW", regex)] == [1]
-    # 'E', 'D', 'K', 'R' are not among the 16 allowed residues.
+    # E, D, K and R aren't in the allowed list
     assert an.find_motifs("ALEAALW", regex) == []
     assert an.find_motifs("ALGHQLW", regex)
     overlapping, _, _ = an.compile_pattern("A?A")
@@ -118,7 +118,7 @@ def test_segments_merge_overlapping_windows():
     assert segments[0].start <= 21 and segments[0].end >= 45
 
 
-# ---------- NCBI record parsing ----------
+# NCBI parsing
 
 def test_parse_origin_and_fields():
     assert len(ncbi.parse_origin(FIXTURE)) == 730
@@ -145,7 +145,7 @@ def test_clean_accession_rejects_junk():
     assert ncbi.clean_accession(" NP_000509.1 ") == "NP_000509.1"
 
 
-# ---------- web routes ----------
+# routes
 
 def test_index(client):
     page = client.get("/").get_data(as_text=True)
@@ -180,7 +180,7 @@ def test_fetch_returns_results_fragment(client):
 
 
 def test_full_page_keeps_form_and_results_together(client):
-    # Without JavaScript the form posts normally and the page comes back with results.
+    # no-JS fallback: normal form post returns the whole page
     page = client.post("/analyze", data={"query": "Q26473"}).get_data(as_text=True)
     assert 'id="analyze-form"' in page and "Hydropathy profile" in page
 
@@ -212,7 +212,7 @@ def test_every_missing_section_explains_why(client):
     # Nothing above the threshold anywhere.
     page = client.post("/analyze", data={"query": "K" * 40}, headers=fetch).get_data(as_text=True)
     assert "no region is marked as hydrophobic" in page and "No letters are red" in page
-    # Pasted sequences explain the missing NCBI link.
+    # pasted sequence has no NCBI link, page should say so
     assert "No NCBI record, so the export contains the analysis only" in page
 
 
@@ -249,7 +249,7 @@ def test_export_record_workbook(client):
     assert "  AUTHORS" in fields and "ORIGIN" in fields
     origin_row = fields.index("ORIGIN") + 2
     assert record.cell(origin_row, 2).value.startswith("1 mraalvavaa")
-    # No HTML anywhere in the export.
+    # no HTML should end up in the excel file
     assert not any("<" in str(c) for row in record.iter_rows(values_only=True) for c in row if c)
 
 

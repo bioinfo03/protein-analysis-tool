@@ -1,4 +1,4 @@
-"""Excel workbooks for the NCBI record and the motif / hydropathy analysis."""
+"""Excel exports (openpyxl)."""
 
 from datetime import datetime, timezone
 from io import BytesIO
@@ -46,10 +46,9 @@ def _table(sheet, headers, rows, widths, wrap=True):
 
 def add_record_sheets(workbook, record_text):
     """
-    'NCBI record': every section of the GenPept details view as Field | Details
-    rows, in NCBI's order, with sub-fields (AUTHORS, TITLE, ...) indented and
-    the ORIGIN sequence one line per row, as in the assignment's example.
-    'Features': the FEATURES table, one row per qualifier.
+    Sheet 1 has the GenPept record as Field / Details rows, in the same order
+    as NCBI, with the ORIGIN sequence one line per row (like the example in
+    the problem statement). Sheet 2 has the FEATURES table.
     """
     sheet = workbook.active
     sheet.title = "NCBI record"

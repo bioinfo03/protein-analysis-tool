@@ -1,4 +1,4 @@
-/* Single-page behaviour: submit the form in place, show results below, draw charts. */
+// Submits the form without reloading, puts the results under the search box and draws the charts.
 (function () {
     const form = document.getElementById("analyze-form");
     const box = document.getElementById("query");
@@ -6,11 +6,10 @@
     const results = document.getElementById("results");
     const page = document.querySelector(".page");
 
-    // If the page came from a plain form post (/analyze), point the address bar
-    // back at "/" so a reload or a restored tab starts empty.
+    // after a normal form post the URL is /analyze; reset it so a reload starts clean
     if (window.location.pathname !== "/") history.replaceState(null, "", "/");
 
-    // ---------- Settings pop-out ----------
+    // settings popup
     const settings = document.querySelector(".settings");
     document.addEventListener("click", event => {
         if (settings.open && !settings.contains(event.target)) settings.open = false;
@@ -25,7 +24,7 @@
         });
     });
 
-    // ---------- Input ----------
+    // input + example chips
     const grow = () => { box.style.height = "auto"; box.style.height = Math.min(box.scrollHeight, 132) + "px"; };
     box.addEventListener("input", grow);
     grow();
@@ -39,12 +38,12 @@
         activeChip = chip;
         form.requestSubmit();
     }));
-    // Enter submits; Shift+Enter adds a new line.
+    // Enter submits, Shift+Enter for a new line
     box.addEventListener("keydown", event => {
         if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); }
     });
 
-    // Same rule as the server: one short token containing a digit is an accession.
+    // same check as looks_like_accession() in app.py
     const looksLikeAccession = text => /^[A-Za-z0-9_.]{2,30}$/.test(text) && /\d/.test(text);
 
     function showLoader() {
@@ -69,7 +68,7 @@
             </div>`;
     }
 
-    // Extra time the loader stays up after the result arrives, so it reads as a step, not a flicker.
+    // keep the loader up a bit longer, otherwise it just flashes
     const EXTRA_LOADING_MS = 1000;
     const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
     let busy = false;
@@ -77,7 +76,7 @@
         event.preventDefault();
         if (busy) return;
         busy = true;
-        page.classList.remove("is-idle");   // the search glides from the centre to the top
+        page.classList.remove("is-idle");   // moves the search box up to the top
         go.classList.add("is-loading");
         go.disabled = true;
         chips.forEach(chip => chip.classList.toggle("is-active", chip === activeChip));
@@ -105,7 +104,7 @@
         window.scrollTo({ top: 0, behavior: "smooth" });
     });
 
-    // ---------- Charts ----------
+    // charts
     const narrow = () => window.matchMedia("(max-width: 640px)").matches;
     const css = getComputedStyle(document.documentElement);
     const color = name => css.getPropertyValue(name).trim();
@@ -120,7 +119,7 @@
         Chart.defaults.color = C.muted;
     }
 
-    // White background so downloaded PNGs are not transparent.
+    // white background, otherwise the downloaded PNG is transparent
     const background = {
         id: "background",
         beforeDraw(chart) {
@@ -130,7 +129,7 @@
             chart.ctx.restore();
         },
     };
-    // Shaded bands marking qualifying motifs on the profile.
+    // blue bands for the motifs on the profile chart
     const motifBands = {
         id: "motifBands",
         beforeDatasetsDraw(chart, _args, options) {
@@ -142,7 +141,7 @@
                 const width = Math.max(scales.x.getPixelForValue(band.end + 0.5) - x1, 3);
                 ctx.fillStyle = C.blueBand;
                 ctx.fillRect(x1, chartArea.top, width, chartArea.bottom - chartArea.top);
-                // Skip a name that would overlap the previous one; the band itself still shows.
+                // skip the label if it would overlap the previous one
                 ctx.font = '600 11px "JetBrains Mono", monospace';
                 const labelWidth = ctx.measureText(band.motif).width;
                 if (x1 + width / 2 - labelWidth / 2 < lastLabelEnd + 6) continue;
@@ -155,7 +154,7 @@
             ctx.restore();
         },
     };
-    // Shades the motif's own residues on a per-motif plot (category axis).
+    // shade the motif residues on the per-motif chart
     const indexBand = {
         id: "indexBand",
         beforeDatasetsDraw(chart, _args, options) {
@@ -282,7 +281,7 @@
         });
     }
 
-    // ---------- Result actions ----------
+    // buttons in the results (copy, download)
     function copyText(text, button) {
         const original = button.textContent;
         const done = () => { button.textContent = "Copied"; setTimeout(() => (button.textContent = original), 1500); };

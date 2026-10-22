@@ -5,6 +5,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Assignment handouts (kept out of the public repository)
+# assignment files, not for the repo
 Help.pdf
 Problem description.doc

@@ -1,10 +1,7 @@
 """
-Protein Hydrophobicity & Motif Analyzer.
-
-Given an NCBI protein accession or a pasted sequence, report every AL???LW
-motif that lies inside a high-hydrophobicity Kyte-Doolittle window
-(window 19, threshold 1.6 by default), with plots, a highlighted sequence
-and an Excel export of the NCBI record.
+Flask app: takes an NCBI accession or a pasted protein sequence and reports
+the AL???LW motifs that fall inside a hydrophobic Kyte-Doolittle window
+(window 19, threshold 1.6 unless changed in the settings).
 """
 
 import os
@@ -15,13 +12,13 @@ import analysis as an
 import export
 import ncbi
 
-# Static files live in public/static: Vercel serves public/** from its CDN at the same
-# /static/... URLs that Flask uses locally.
+# Vercel only serves static files from public/, so they live in public/static.
+# Locally Flask serves the same folder, so /static/... works in both places.
 app = Flask(__name__, static_folder="public/static", static_url_path="/static")
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 MB of form data is plenty
 
-# The 481-residue protein used in the assignment's example output
-# (AL???LW motif 'ALHAGLW' at residues 297-303).
+# Protein from the example output in the problem statement (481 aa).
+# Has ALHAGLW at 297-303, which is what the example plot shows.
 EXAMPLE_SEQUENCE = (
     "MPELSPRRRLLVLAICCLSLLIVSLDNTVLNVALPSMQKELHASVAGLQWTIDAYTLVLASLLMLAGSTA"
     "DRIGRRRVFRTGLVLFTIGSVLCSLAPNLESLVAFRMVQAVGGSMLNPVAMSIITNTFTEPRERARAIGV"
@@ -32,14 +29,14 @@ EXAMPLE_SEQUENCE = (
     "GPYRQVFESAARPGWWIIAGCGLSVLVLGALSSGAWARATARRTAQRLESTEVRDEAGVNA"
 )
 EXAMPLE_ACCESSION = "Q26473"
-# One-click examples under the input box: (label, accession, hover text).
+# "Try" chips on the home page: (label, accession, tooltip)
 EXAMPLE_PROTEINS = [
     ("Semaphorin-7A", "O75326", "O75326, human: ALAASLW at 646-652, in a hydrophobic window"),
     ("Ammonium transporter", "P69681", "P69681, E. coli AmtB: ALVCILW at 75-81, in a hydrophobic window"),
 ]
 
 def read_settings(values):
-    """Parse the advanced options; blank fields fall back to the defaults."""
+    """Read window/threshold/pattern/allowed from the form, using defaults for blanks."""
     def get(name, default):
         value = (values.get(name) or "").strip()
         return value if value else default
@@ -58,7 +55,7 @@ def read_settings(values):
 
 
 def settings_query(settings):
-    """Query-string parameters for non-default settings (keeps links short)."""
+    """Only the settings that differ from the defaults, for the export link."""
     defaults = an.Settings()
     params = {}
     for name in ("window", "threshold", "pattern", "allowed"):
@@ -69,17 +66,17 @@ def settings_query(settings):
 
 
 def looks_like_accession(text):
-    """A single short token with a digit (Q26473, NP_000509.1); sequences have no digits."""
+    """Q26473, NP_000509.1 etc. Sequences never contain digits, accessions do."""
     return bool(ncbi.ACCESSION_RE.fullmatch(text)) and any(c.isdigit() for c in text)
 
 
 def load_input(values):
-    """Return (sequence, record_or_None, warnings) from the submitted form."""
+    """Returns (sequence, record or None, warnings)."""
     mode = values.get("mode")
     accession = (values.get("accession") or "").strip()
     sequence_text = values.get("sequence") or ""
 
-    # The home page has one box for both kinds of input.
+    # same box is used for accessions and sequences
     query = (values.get("query") or "").strip()
     if query:
         if looks_like_accession(query):
@@ -100,18 +97,18 @@ def load_input(values):
 
 
 def is_fetch():
-    """The page's script asks for just the results fragment."""
+    """True when the request comes from app.js (it only wants the results HTML)."""
     return request.headers.get("X-Requested-With") == "fetch"
 
 
 def render_page(values=None, error=None, results=None, status=200):
-    """The single page: input form, plus the results (or an error) below it."""
+    """Render the page, or just the results/error part for fetch requests."""
     values = values or {}
     query = values.get("query") or values.get("accession") or values.get("sequence") or ""
     try:
         settings_changed = bool(values) and read_settings(values) != an.Settings()
     except ValueError:
-        settings_changed = True     # show the panel so the bad value can be fixed
+        settings_changed = True     # keep the panel open so the bad value is visible
     if is_fetch():
         if error:
             return render_template("_error.html", error=error), status
@@ -155,8 +152,7 @@ def index():
 
 @app.route("/analyze", methods=["GET", "POST"])
 def analyze():
-    # Results only appear after the user presses Analyze; a reload or an old
-    # bookmark of /analyze lands on the empty page.
+    # Don't show results on a plain GET (reload, old bookmark), only after Analyze.
     if request.method == "GET":
         return redirect(url_for("index"))
     values = request.form
@@ -173,7 +169,7 @@ def analyze():
 
 @app.route("/export/<accession>")
 def export_record(accession):
-    """The NCBI details view as Excel, plus the analysis with the given settings."""
+    """Excel file of the NCBI record, plus the analysis sheets."""
     try:
         settings = read_settings(request.args)
         record = ncbi.fetch_record(accession)
@@ -195,7 +191,7 @@ def export_record(accession):
 
 @app.route("/export-analysis", methods=["POST"])
 def export_analysis():
-    """Analysis-only workbook, used for pasted sequences."""
+    """Excel export for pasted sequences (no NCBI record, so analysis only)."""
     try:
         settings = read_settings(request.form)
         sequence, _ = an.normalize_sequence(request.form.get("sequence", ""))

@@ -1,13 +1,12 @@
 """
-Core sequence analysis: Kyte-Doolittle hydropathy profile and motif search.
+Kyte-Doolittle hydropathy and motif search.
 
-Conventions used throughout this module:
-  * Positions shown to users are 1-based and inclusive (residue 1 is the first).
-  * A window of size w that starts at residue s covers residues s .. s+w-1.
-    Its mean Kyte-Doolittle (KD) score is plotted at the window's midpoint,
-    s + (w-1)//2, as described in the Kyte & Doolittle (1982) method.
-  * A motif "is in a high hydrophobicity window" when at least one complete
-    window whose mean KD score is >= threshold contains every motif residue.
+Notes:
+- positions are 1-based and inclusive, same as NCBI
+- a window of size w starting at s covers s..s+w-1, and its mean is plotted
+  at the middle residue, s + (w-1)//2
+- a motif counts as "in a high hydrophobicity window" if some full window
+  with mean >= threshold contains the whole motif
 """
 
 import re
@@ -22,8 +21,8 @@ KD_SCALE = {
 }
 STANDARD_AA = frozenset(KD_SCALE)
 
-# IUPAC ambiguity / rare residue codes that appear in real NCBI records.
-# They are accepted and scored with the closest sensible KD value.
+# Ambiguous / rare residue codes that show up in some NCBI records.
+# They aren't in the KD table, so give them a reasonable value instead of failing.
 AMBIGUOUS_AA = {
     "B": ("Asn or Asp", (KD_SCALE["N"] + KD_SCALE["D"]) / 2),
     "Z": ("Gln or Glu", (KD_SCALE["Q"] + KD_SCALE["E"]) / 2),
@@ -44,12 +43,12 @@ AA_NAMES = {
 DEFAULT_WINDOW = 19
 DEFAULT_THRESHOLD = 1.6
 DEFAULT_PATTERN = "AL???LW"
-# The 16 residues the assignment allows at each "?" position.
+# the 16 residues allowed for each "?" in the problem statement
 DEFAULT_ALLOWED = "AVLIMPFYWSTNCHQG"
 
 MIN_WINDOW, MAX_WINDOW = 3, 99
 MAX_SEQUENCE_LENGTH = 100_000
-# Floating-point tolerance so that a window averaging exactly 1.6 passes 1.6.
+# float tolerance, so a window that averages exactly 1.6 still counts
 EPSILON = 1e-9
 
 
@@ -84,7 +83,7 @@ class MotifHit:
     motif: str
     start: int
     end: int
-    windows: list           # every complete window containing the whole motif
+    windows: list           # all full windows that contain the whole motif
     qualifying: bool
     best_window: Window | None
 
@@ -95,7 +94,7 @@ class MotifHit:
 
 @dataclass
 class Segment:
-    """A run of overlapping high-scoring windows: a candidate hydrophobic region."""
+    """Overlapping high-scoring windows merged together (likely membrane region)."""
     start: int
     end: int
     peak_score: float
@@ -112,8 +111,8 @@ class Analysis:
     settings: Settings
     pattern_regex: str
     windows: list
-    residue_scores: list    # index i -> score of the window centred on residue i+1, or None
-    high_residues: set      # 1-based positions whose centred window passes the threshold
+    residue_scores: list    # i -> score of the window centred on residue i+1 (None at the ends)
+    high_residues: set      # residues whose centred window is >= threshold
     hits: list
     segments: list
     warnings: list
@@ -133,11 +132,8 @@ class Analysis:
 
 def normalize_sequence(raw):
     """
-    Turn pasted text into a clean upper-case sequence.
-
-    Accepts plain sequences, FASTA (header lines starting with '>' or ';'),
-    and GenBank ORIGIN-style text with position numbers. A trailing stop
-    codon '*' is dropped. Returns (sequence, warnings).
+    Clean up pasted text. Handles plain sequence, FASTA, and GenBank-style
+    text with numbers in it. Drops a trailing '*'. Returns (sequence, warnings).
     """
     lines = [line.strip() for line in (raw or "").splitlines()]
     body = [line for line in lines if line and not line.startswith((">", ";"))]
@@ -181,17 +177,15 @@ def normalize_allowed(allowed):
     bad = sorted(set(letters) - STANDARD_AA)
     if bad:
         raise ValueError(f"Allowed residues must be standard amino acids; remove: {', '.join(bad)}.")
-    # Keep the user's order, drop duplicates.
+    # remove duplicates but keep the order
     return "".join(dict.fromkeys(letters))
 
 
 def compile_pattern(pattern, allowed=DEFAULT_ALLOWED):
     """
-    Convert a motif such as 'AL???LW' into a regular expression.
-
-    Syntax: a letter matches that residue, '?' matches any residue in
-    `allowed`, and '[ILV]' matches any one of the bracketed residues.
-    Returns (compiled_regex, motif_length, readable_regex).
+    Turn a pattern like 'AL???LW' into a regex. A letter matches itself,
+    '?' matches anything in `allowed`, [ILV] matches one of I/L/V.
+    Returns (compiled regex, motif length, regex as text).
     """
     text = re.sub(r"\s", "", pattern or "").upper()
     if not text:
@@ -221,7 +215,7 @@ def compile_pattern(pattern, allowed=DEFAULT_ALLOWED):
         i += 1
 
     readable = "".join(parts)
-    # The lookahead lets overlapping occurrences be reported as well.
+    # lookahead so overlapping matches are found too
     return re.compile(f"(?=({readable}))"), length, readable
 
 
@@ -232,7 +226,7 @@ def kd_value(residue):
 
 
 def sliding_windows(sequence, window, threshold):
-    """Mean KD score for every complete window, computed with a running sum."""
+    """Mean KD score of every full window (running sum)."""
     if len(sequence) < window:
         return []
     values = [kd_value(aa) for aa in sequence]
@@ -285,7 +279,7 @@ def analyze(sequence, settings=Settings()):
             "a window must be at least as long as the motif to contain it."
         )
 
-    # A sequence shorter than the window gets no windows; the page explains why.
+    # sequence shorter than the window -> no windows (the page says why)
     windows = sliding_windows(sequence, settings.window, settings.threshold)
 
     residue_scores = [None] * len(sequence)
@@ -296,7 +290,7 @@ def analyze(sequence, settings=Settings()):
     hits = []
     last_start = len(sequence) - settings.window + 1
     for motif, start, end in find_motifs(sequence, regex):
-        # Windows containing the whole motif start between end-w+1 and start.
+        # windows that contain the whole motif start somewhere in end-w+1 .. start
         first = max(1, end - settings.window + 1)
         last = min(start, last_start)
         containing = windows[first - 1:last] if last >= first else []
@@ -318,10 +312,7 @@ def analyze(sequence, settings=Settings()):
 
 
 def sequence_rows(analysis, line_length=60, block=10):
-    """
-    Lay the sequence out like NCBI's ORIGIN section (60 residues per line,
-    blocks of 10) with a highlight class for each residue.
-    """
+    """Rows of 60 residues in blocks of 10 (like NCBI), with a CSS class per residue."""
     qualifying = set()
     other_motif = set()
     for hit in analysis.hits:
@@ -355,7 +346,7 @@ def sequence_rows(analysis, line_length=60, block=10):
 
 
 def chart_data(analysis):
-    """Plain data for the browser-side charts."""
+    """Data passed to the Chart.js plots."""
     seq = analysis.sequence
     return {
         "threshold": analysis.settings.threshold,
