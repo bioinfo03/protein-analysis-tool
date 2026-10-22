@@ -135,3 +135,4 @@ tests/           pytest tests
 ## Author
 
 Madhvi Mishra
+# motif-predictor
