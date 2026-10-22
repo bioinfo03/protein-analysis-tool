@@ -69,6 +69,40 @@
 
     <section class="block">
         <div class="block-head">
+            <h3>Transmembrane prediction <span class="sub-title">TMpred-style</span></h3>
+            {% if tm_fits %}
+            <div class="key">
+                <span><i class="k-line"></i>i→o</span>
+                <span><i class="k-dots"></i>o→i</span>
+                <span><i class="k-dash"></i>Significant (500)</span>
+                <button class="text-btn" type="button" data-download="tm-chart" data-name="tmpred_style_prediction">Download PNG</button>
+            </div>
+            {% endif %}
+        </div>
+        <div class="panel">
+        {% if tm_fits %}
+            <div class="chart chart-lg"><canvas id="tm-chart" aria-label="TMpred-style transmembrane prediction"></canvas></div>
+            {% if tm_helices %}
+            <table class="tm-table">
+                <thead><tr><th>Helix</th><th>Residues</th><th>Score</th><th>Preferred orientation</th></tr></thead>
+                <tbody>
+                {% for h in tm_helices %}
+                    <tr><td>{{ loop.index }}</td><td class="mono">{{ h.start }}–{{ h.end }}</td><td class="mono">{{ h.score }}</td><td>{{ h.orientation }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="note">No helix scores above 500, so no transmembrane helix is predicted.</p>
+            {% endif %}
+            <p class="note">TMpred itself is offline, so this plot is computed here using the same scoring idea, calibrated to the TMpred example in the problem statement.</p>
+        {% else %}
+            <p class="empty">This sequence has {{ length }} letters, too short for the 21-residue helix core the prediction needs.</p>
+        {% endif %}
+        </div>
+    </section>
+
+    <section class="block">
+        <div class="block-head">
             <h3>Hydropathy profile</h3>
             {% if a.windows %}
             <div class="key">
@@ -159,5 +193,5 @@
         </div>
     </section>
 
-    <script type="application/json" class="analysis-data">{{ {'chart': chart, 'sequence': a.sequence, 'fasta_header': fasta_header} | tojson }}</script>
+    <script type="application/json" class="analysis-data">{{ {'chart': chart, 'sequence': a.sequence, 'fasta_header': fasta_header, 'helices': tm_helices} | tojson }}</script>
 </section>

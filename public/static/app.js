@@ -111,7 +111,7 @@
     const C = {
         ink: color("--ink"), muted: color("--muted"), grid: color("--grid"), line: color("--line"),
         red: color("--red"), redFill: color("--red-fill"),
-        blue: color("--blue"), blueBand: color("--blue-band"), surface: color("--surface"),
+        blue: color("--blue"), blueBand: color("--blue-band"), surface: color("--surface"), tmDots: color("--tm-dots"),
     };
     if (window.Chart) {
         Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
@@ -170,6 +170,68 @@
         },
     };
 
+
+    // gray bands for the predicted helices on the TM chart
+    const helixBands = {
+        id: "helixBands",
+        beforeDatasetsDraw(chart, _args, options) {
+            const { ctx, chartArea, scales } = chart;
+            ctx.save();
+            for (const band of options.bands || []) {
+                const x1 = scales.x.getPixelForValue(band.start - 0.5);
+                const x2 = scales.x.getPixelForValue(band.end + 0.5);
+                ctx.fillStyle = band.color;
+                ctx.fillRect(x1, chartArea.top, Math.max(x2 - x1, 2), chartArea.bottom - chartArea.top);
+            }
+            ctx.restore();
+        },
+    };
+
+    // Two curves like TMpred: solid i->o, dotted o->i, 0 where the helix core doesn't fit.
+    function tmChart(data, helices, sequence) {
+        const canvas = document.getElementById("tm-chart");
+        if (!canvas) return;
+        const io = data.tm.io.map((y, i) => ({ x: i + 1, y }));
+        const oi = data.tm.oi.map((y, i) => ({ x: i + 1, y }));
+        const xMax = Math.ceil(data.length / 100) * 100;
+        const bands = helices.map(h => ({ start: h.start, end: h.end, color: "rgba(19, 35, 58, 0.06)" }))
+            .concat(data.motifs.filter(m => m.qualifying).map(m => ({ start: m.start, end: m.end, color: C.blueBand })));
+        new Chart(canvas, {
+            type: "line",
+            data: {
+                datasets: [
+                    { label: "i→o", data: io, borderColor: C.ink, borderWidth: 1.3, pointRadius: 0, pointHoverRadius: 3, tension: 0 },
+                    { label: "o→i", data: oi, borderColor: C.tmDots, borderWidth: 1.5, borderDash: [2, 2.5], pointRadius: 0, pointHoverRadius: 3, tension: 0 },
+                    {
+                        data: [{ x: 0, y: data.tm.significant }, { x: xMax, y: data.tm.significant }],
+                        borderColor: C.red, borderDash: [5, 4], borderWidth: 1.1, pointRadius: 0, pointHoverRadius: 0,
+                    },
+                ],
+            },
+            options: {
+                maintainAspectRatio: false, animation: false, parsing: false,
+                interaction: { mode: "index", axis: "x", intersect: false },
+                scales: {
+                    x: { type: "linear", min: 0, max: xMax, grid: { display: false }, border: { color: C.line },
+                         title: { display: true, text: "Residue position" }, ticks: { stepSize: 100, maxTicksLimit: narrow() ? 6 : 12 } },
+                    y: { grid: { color: C.grid }, border: { display: false },
+                         title: { display: !narrow(), text: "TMpred-style score" } },
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        filter: item => item.datasetIndex < 2,
+                        callbacks: {
+                            title: items => `${sequence[items[0].parsed.x - 1] || ""}${items[0].parsed.x}`,
+                            label: item => `${item.dataset.label}  ${Math.round(item.parsed.y)}`,
+                        },
+                    },
+                    helixBands: { bands },
+                },
+            },
+            plugins: [background, helixBands],
+        });
+    }
 
     function profileChart(data, sequence) {
         const canvas = document.getElementById("profile-chart");
@@ -304,6 +366,7 @@
         if (!node) return;
         const payload = JSON.parse(node.textContent);
         if (window.Chart) {
+            tmChart(payload.chart, payload.helices || [], payload.sequence);
             profileChart(payload.chart, payload.sequence);
             motifCharts(payload.chart);
         }

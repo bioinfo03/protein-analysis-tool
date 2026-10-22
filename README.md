@@ -14,8 +14,10 @@ These follow the five points listed under "HTML output page" in the problem stat
 1. **Link to the NCBI search page** for the accession (the "NCBI record" button).
 2. **Excel export of the NCBI record.** Same fields as the GenPept page (LOCUS, DEFINITION,
    references, features, ORIGIN...), no HTML.
-3. **Hydrophobicity plot** for the whole protein. The problem statement suggests taking this
-   from TMpred, but TMpred (ch.embnet.org) has been shut down, so the app draws it itself.
+3. **Transmembrane prediction plot (TMpred-style).** The problem statement says to take this
+   from TMpred, but TMpred (ch.embnet.org) has been shut down, so the app draws it itself:
+   two curves (i→o and o→i) on TMpred's scale, plus a table of predicted helices. There's
+   also a plain Kyte-Doolittle profile of the whole protein below it.
 4. **Kyte-Doolittle plot for each motif.** Shows every window that contains the motif and
    whether any of them passes the threshold.
 5. **The sequence**, with the motif in blue and the high-scoring residues in red.
@@ -51,6 +53,15 @@ I checked this against the example in the problem statement. Running the 481-res
 protein gives the same 13 values as the example plot (0.36, 0.49, 0.72 ... 1.81 around
 ALHAGLW at 297-303). The only difference is that the example labels each point one residue to
 the right. I've used the middle of the window, which is the usual way to plot it.
+
+**The TMpred-style plot.** TMpred scores a possible helix (a ~21-residue core plus its ends)
+in both directions through the membrane, and anything over 500 counts as a helix. I rebuilt
+that in `tmpred.py`. The weights were fitted to the TMpred plot in the problem statement:
+I digitised it and our curve matches it with r = 0.97. The difference between the two
+curves comes from the positive-inside rule (K and R end up on the inside of the cell).
+As a sanity check I ran it on rhodopsin, the beta-2 adrenergic receptor, GLUT1, AmtB and
+EnvZ: it finds all 39 of their known transmembrane helices. It's not the original program,
+so the numbers won't be identical, but the plot reads the same way.
 
 ## Examples
 
@@ -107,6 +118,7 @@ the Q26473 record, so they don't need internet.
 ```text
 app.py           Flask routes
 analysis.py      Kyte-Doolittle scoring and motif search
+tmpred.py        TMpred-style transmembrane prediction
 ncbi.py          fetching from NCBI and parsing GenPept records
 export.py        Excel export
 templates/       HTML templates

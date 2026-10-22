@@ -18,6 +18,7 @@
     --red: #df3b35;
     --red-soft: #fde8e6;
     --red-fill: rgba(223, 59, 53, 0.28);
+    --tm-dots: #c2620f;   /* o->i curve */
     --shadow: 0 1px 2px rgba(19, 35, 58, 0.04), 0 6px 20px -10px rgba(19, 35, 58, 0.14);
     --sans: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
     --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
@@ -174,12 +175,19 @@ button { font-family: inherit; }
 .k-blue { background: var(--blue-band); border: 1px solid var(--blue); }
 .k-red-solid { background: var(--red); }
 .key i.k-dash { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed var(--red); }
+.key i.k-line { width: 16px; height: 0; border-radius: 0; border-top: 2px solid var(--ink); }
+.key i.k-dots { width: 16px; height: 0; border-radius: 0; border-top: 2px dotted var(--tm-dots); }
 .key i.k-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
 .k-blue-solid { background: var(--blue); }
 .k-blue-line { box-shadow: inset 0 -2px 0 var(--blue); background: var(--blue-band); }
 .text-btn { background: none; border: 0; padding: 2px 0; color: var(--blue); font-size: 13px; cursor: pointer; }
 .text-btn:hover { text-decoration: underline; }
 
+.sub-title { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.tm-table { width: 100%; max-width: 560px; border-collapse: collapse; margin-top: 14px; font-size: 14px; }
+.tm-table th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.tm-table td { padding: 6px 10px; border-bottom: 1px solid var(--grid); }
+.tm-table tr:last-child td { border-bottom: 0; }
 .note { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
 .empty { margin: 0; padding: 16px 18px; background: var(--soft); border-radius: 10px; color: var(--ink-2); font-size: 14.5px; }
 

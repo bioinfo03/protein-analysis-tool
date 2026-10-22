@@ -11,6 +11,7 @@ from flask import Flask, redirect, render_template, request, send_file, url_for
 import analysis as an
 import export
 import ncbi
+import tmpred
 
 # Vercel only serves static files from public/, so they live in public/static.
 # Locally Flask serves the same folder, so /static/... works in both places.
@@ -130,6 +131,9 @@ def render_page(values=None, error=None, results=None, status=200):
 
 
 def results_context(result, record, warnings):
+    tm_io, tm_oi = tmpred.profile(result.sequence)
+    chart = an.chart_data(result)
+    chart["tm"] = {"io": tm_io, "oi": tm_oi, "significant": tmpred.SIGNIFICANT}
     export_url = None
     if record:
         export_url = url_for("export_record", accession=record.accession, **settings_query(result.settings))
@@ -138,7 +142,9 @@ def results_context(result, record, warnings):
         "record": record,
         "warnings": warnings + result.warnings,
         "rows": an.sequence_rows(result),
-        "chart": an.chart_data(result),
+        "chart": chart,
+        "tm_helices": tmpred.helices(tm_io, tm_oi),
+        "tm_fits": any(tm_io),
         "aa_names": an.AA_NAMES,
         "export_url": export_url,
         "fasta_header": f"{record.version or record.accession} {record.definition}" if record else "pasted_sequence",

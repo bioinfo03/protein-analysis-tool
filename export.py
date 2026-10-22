@@ -8,6 +8,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 import ncbi
+import tmpred
 from analysis import kd_value
 
 HEADER_FILL = PatternFill("solid", fgColor="1F4E79")
@@ -140,6 +141,27 @@ def add_analysis_sheets(workbook, analysis, source):
             row[4].fill = HIGH_FILL
         if row[6].value == "Yes":
             row[1].fill = MOTIF_FILL
+
+    add_tm_sheet(workbook, analysis.sequence)
+
+
+def add_tm_sheet(workbook, sequence):
+    """TMpred-style scores per residue, with the predicted helices on top."""
+    io, oi = tmpred.profile(sequence)
+    sheet = workbook.create_sheet("TM prediction")
+    found = tmpred.helices(io, oi)
+    rows = [[n, f"{h['start']}-{h['end']}", h["score"], h["orientation"]] for n, h in enumerate(found, start=1)]
+    if not rows:
+        rows = [["", "no helix scores above 500", "", ""]]
+    _table(sheet, ["Helix", "Residues", "Score", "Preferred orientation"], rows, [10, 16, 10, 22], wrap=False)
+    sheet.append([])
+    start = sheet.max_row + 1
+    sheet.append(["Position", "Residue", "i->o", "o->i"])
+    for cell in sheet[start]:
+        cell.font, cell.fill = HEADER_FONT, HEADER_FILL
+    for pos, (aa, a, b) in enumerate(zip(sequence, io, oi), start=1):
+        sheet.append([pos, aa, a, b])
+    sheet.auto_filter.ref = None
 
 
 def to_bytes(workbook):

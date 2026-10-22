@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from openpyxl import load_workbook
 import analysis as an
 import app as webapp
 import ncbi
+import tmpred
 
 FIXTURE = (Path(__file__).parent / "fixtures" / "Q26473.gp").read_text()
 
@@ -118,6 +120,36 @@ def test_segments_merge_overlapping_windows():
     assert segments[0].start <= 21 and segments[0].end >= 45
 
 
+# TMpred-style prediction
+
+def test_tmpred_curves_match_the_example_plot():
+    seq = ncbi.parse_origin(FIXTURE)
+    io, oi = tmpred.profile(seq)
+    target = json.loads((Path(__file__).parent / "fixtures" / "tmpred_example_Q26473.json").read_text())["mid"]
+    rows = range(9, 715)
+    ours = [(io[i] + oi[i]) / 2 for i in rows]
+    theirs = [target[i] for i in rows]
+    mean_a, mean_b = sum(ours) / len(ours), sum(theirs) / len(theirs)
+    cov = sum((a - mean_a) * (b - mean_b) for a, b in zip(ours, theirs))
+    r = cov / (sum((a - mean_a) ** 2 for a in ours) * sum((b - mean_b) ** 2 for b in theirs)) ** 0.5
+    assert r > 0.95
+
+
+def test_tmpred_helices_for_q26473():
+    io, oi = tmpred.profile(ncbi.parse_origin(FIXTURE))
+    found = tmpred.helices(io, oi)
+    centers = [h["center"] for h in found]
+    # signal peptide at the start (i->o) and the membrane helix near 640 (o->i), like TMpred
+    assert any(c < 25 for c in centers) and any(630 <= c <= 650 for c in centers)
+    assert found[0]["orientation"] == "i→o" and found[-1]["orientation"] == "o→i"
+
+
+def test_tmpred_is_zero_where_the_core_does_not_fit():
+    io, oi = tmpred.profile("ALAAALW" * 5)
+    assert io[0] == oi[0] == 0 and io[-1] == oi[-1] == 0 and any(io)
+    assert tmpred.profile("MKTA") == ([0, 0, 0, 0], [0, 0, 0, 0])
+
+
 # NCBI parsing
 
 def test_parse_origin_and_fields():
@@ -216,6 +248,13 @@ def test_every_missing_section_explains_why(client):
     assert "No NCBI record, so the export contains the analysis only" in page
 
 
+def test_results_include_tm_prediction(client):
+    page = client.post("/analyze", data={"query": "Q26473"}, headers={"X-Requested-With": "fetch"}).get_data(as_text=True)
+    assert "Transmembrane prediction" in page and 'id="tm-chart"' in page and "o→i" in page
+    short = client.post("/analyze", data={"query": "MKALAAALWK"}, headers={"X-Requested-With": "fetch"}).get_data(as_text=True)
+    assert "too short for the 21-residue helix core" in short
+
+
 def test_analyze_accession_links(client):
     response = client.post("/analyze", data={"mode": "accession", "accession": "q26473"})
     page = response.get_data(as_text=True)
@@ -242,7 +281,7 @@ def test_export_record_workbook(client):
     response = client.get("/export/Q26473")
     assert response.status_code == 200
     workbook = load_workbook(BytesIO(response.data))
-    assert workbook.sheetnames == ["NCBI record", "Features", "Motif analysis", "KD profile"]
+    assert workbook.sheetnames == ["NCBI record", "Features", "Motif analysis", "KD profile", "TM prediction"]
     record = workbook["NCBI record"]
     fields = [row[0] for row in record.iter_rows(min_row=2, values_only=True)]
     assert fields[:4] == ["LOCUS", "DEFINITION", "ACCESSION", "VERSION"]
@@ -256,7 +295,7 @@ def test_export_record_workbook(client):
 def test_export_analysis_for_pasted_sequence(client):
     response = client.post("/export-analysis", data={"sequence": webapp.EXAMPLE_SEQUENCE})
     workbook = load_workbook(BytesIO(response.data))
-    assert workbook.sheetnames == ["Motif analysis", "KD profile"]
+    assert workbook.sheetnames == ["Motif analysis", "KD profile", "TM prediction"]
     assert workbook["KD profile"].max_row == 482
 
 
